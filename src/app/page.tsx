@@ -27,10 +27,11 @@ export default function Home() {
 
   useEffect(() => {
     const fetchNotes = async () => {
+      //le filtre
       const params = new URLSearchParams()
       if (search) params.set('search', search)
       if (activeTag) params.set('tag', activeTag)
-
+      //appel api
       const res = await fetch(`/api/notes?${params}`)
       const data = await res.json()
 
