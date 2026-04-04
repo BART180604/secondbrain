@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from "next/server";
 import {prisma} from "@/lib/prisma";
+import {generateEmbedding} from "@/lib/embeddings";
 
 
 export async function GET(request:NextRequest){
@@ -38,19 +39,24 @@ export async function POST(request:NextRequest){
                 success: false, message: "Title and content are required"
             },{status:400})
         }
+        // Génère l'embedding
+        const embedding = await generateEmbedding(`${title}\n\n${content}`)
+        const note = await prisma.$queryRaw`
+          INSERT INTO notes (id, title, content, source_url, tags, embedding, created_at, updated_at)
+          VALUES (
+             gen_random_uuid()::text,
+             ${title},
+             ${content},
+             ${sourceUrl || null},
+             ${tags || []}::text[],
+             ${`[${embedding.join(',')}]`}::vector,
+             NOW(),
+             NOW()
+         )
+         RETURNING id, title, content, source_url as "sourceUrl", tags, created_at as "createdAt", updated_at as "updatedAt"
+       `
 
-        const note = await prisma.note.create({
-            data:{
-                title,
-                content,
-                sourceUrl : sourceUrl || null,
-                tags : tags || []
-            }
-        })
-
-        return NextResponse.json({
-            success: true, message: "Note created", note
-        },{status:201})
+        return NextResponse.json({ note: (note as any[])[0] }, { status: 201 })
     }catch(error){
         console.error("[POST ERROR]  ", error);
         return NextResponse.json({success:false, message: "Internal server error"},{status:500})
