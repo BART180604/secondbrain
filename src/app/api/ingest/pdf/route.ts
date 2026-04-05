@@ -2,7 +2,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { extractText } from 'unpdf'
 import { prisma } from '@/lib/prisma'
+import {generateEmbedding} from "@/lib/embeddings";
 
+type NoteSearchResult = {
+    id: string
+    title: string
+    content: string
+    sourceUrl: string | null
+    tags: string[]
+    createdAt: Date
+    score: number
+}
 export const config = {
     api: {
         bodyParser: false,
@@ -48,21 +58,30 @@ export async function POST(raq:NextRequest){
             ? tags.split(',').map(t => t.trim()).filter(Boolean)
             : ['pdf']
 
-        const note = await prisma.note.create({
-            data: {
-                title,
-                content: cleanContent,
-                sourceUrl: null,
-                tags: parsedTags,
-            },
-        })
+
+        //Générer les embedding
+
+        const embedding = await generateEmbedding(`${title}\n\n${cleanContent}`)
+        const vectorString = `[${embedding.join(',')}]`
+
+        const result = await prisma.$queryRawUnsafe<NoteSearchResult[]>(`
+            INSERT INTO notes (id, title, content, source_url, tags, embedding, created_at, updated_at)
+            VALUES (
+                 gen_random_uuid()::text,
+                '${title.replace(/'/g, "''")}',
+                '${cleanContent.replace(/'/g, "''")}',
+                NULL,
+                ARRAY[${parsedTags.map(t => `'${t}'`).join(',')}]::text[],
+                '${vectorString}'::vector,
+                NOW(),
+                NOW()
+            )
+            RETURNING id, title, content, tags, created_at as "createdAt"
+       `)
 
         return NextResponse.json({
-            note,
-            meta: {
-                pages: pages,
-                characters: cleanContent.length,
-            },
+            note: result[0],
+            meta: { pages: pages, characters: cleanContent.length },
         }, { status: 201 })
 
 

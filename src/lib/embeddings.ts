@@ -1,6 +1,7 @@
 // Ollama — local, gratuit
 const PROVIDER = process.env.EMBEDDING_PROVIDER || 'ollama'
-
+// Ollama supporte ~500 tokens max (~2000 caractères)
+const MAX_CHARS = PROVIDER === 'ollama' ? 2000 : 8000
 async function embedWithOllama(text: string): Promise<number[]> {
     const response = await fetch('http://localhost:11434/api/embeddings', {
         method: 'POST',
@@ -36,7 +37,7 @@ async function embedWithOpenAI(text: string): Promise<number[]> {
 // Fonction principale — switche selon EMBEDDING_PROVIDER
 export async function generateEmbedding(text: string): Promise<number[]> {
     // Nettoie et tronque le texte
-    const cleanText = text.replace(/\s+/g, ' ').trim().slice(0, 8000)
+    const cleanText = text.replace(/\s+/g, ' ').trim().slice(0, MAX_CHARS)
 
     if (PROVIDER === 'openai') {
         return embedWithOpenAI(cleanText)

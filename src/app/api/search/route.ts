@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const query = searchParams.get('q')
-    const limit = parseInt(searchParams.get('limit') || '5')
+    const limit = Number.parseInt(searchParams.get('limit') || '5')
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json(

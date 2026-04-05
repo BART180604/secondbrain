@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as cheerio from 'cheerio'  //pour extraire une page web et y récupérer des informations
 import { prisma } from '@/lib/prisma'
+import {generateEmbedding} from "@/lib/embeddings";
 
+type NoteSearchResult = {
+    id: string
+    title: string
+    content: string
+    sourceUrl: string | null
+    tags: string[]
+    createdAt: Date
+    score: number
+}
 
 export async function POST(req: NextRequest){
     try {
@@ -50,15 +60,26 @@ export async function POST(req: NextRequest){
                 { status: 400 }
             )
         }
-        const note = await prisma.note.create({
-            data: {
-                title: title.trim().slice(0, 255),
-                content: cleanContent,
-                sourceUrl: url,
-                tags: tags || ['web'],
-            },
-        })
-        return NextResponse.json({ note }, { status: 201 })
+
+        //Générer l'embedding
+        const embedding = await generateEmbedding(`${title}\n\n${cleanContent}`)
+        const vectorString = `[${embedding.join(",")}]`
+        const result = await prisma.$queryRawUnsafe<NoteSearchResult[]>(`
+            INSERT INTO notes (id, title, content, source_url, tags, embedding, created_at, updated_at)
+            VALUES (
+                gen_random_uuid()::text,
+                '${title.trim().slice(0, 255).replace(/'/g, "''")}',
+                '${cleanContent.replace(/'/g, "''")}',
+                '${url.replace(/'/g, "''")}',
+                 ARRAY[${(tags || ['web']).map((t: string) => `'${t}'`).join(',')}]::text[],
+                '${vectorString}'::vector,
+                 NOW(),
+                 NOW()
+            )
+            RETURNING id, title, content, source_url as "sourceUrl", tags, created_at as "createdAt"
+        `)
+
+        return NextResponse.json({ note: result[0] }, { status: 201 })
     }catch(err){
         console.log("[URL INGEST POST ERROR]",err);
         if (err instanceof Error && err.name === 'TimeoutError') {

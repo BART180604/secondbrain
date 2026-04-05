@@ -23,3 +23,25 @@ model Note {
 
   @@map("notes")
 }
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("Nouvelle conversation")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  messages  Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  role           String // 'user' ou 'assistant'
+  content        String
+  sources        String[]     @default([]) // IDs des notes citées
+  conversationId String       @map("conversation_id")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@map("messages")
+}
